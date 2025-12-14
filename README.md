@@ -1,4 +1,4 @@
-# 🏛️ Library Management System (v3.0)
+# 🏛️ Library Management System (v1.0)
 
 A robust, console-based **Library Management System** built with **Python** and **SQLite**. 
 This project demonstrates backend development principles including **Object-Oriented Programming (OOP)**, **CRUD operations**, **Relational Database Logic**, and **Data Integrity**.
@@ -49,4 +49,4 @@ This project demonstrates backend development principles including **Object-Orie
 * Adding book categories and barcode scanning support.
 
 ---
-**Developer:** Faruk Korkmaz (@farukkokrmaz-dev)
+**Developer:** Faruk Korkmaz (@farukkorkmaz-dev)
