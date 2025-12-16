@@ -1,265 +1,261 @@
 import sqlite3
 
-class Kutuphane:
+class Library:
     def __init__(self):
-        self.baglanti_kur()
+        self.connect_db()
 
-    def baglanti_kur(self):
-        self.baglanti = sqlite3.connect("kutuphane.db")
-        self.imlec = self.baglanti.cursor()
+    def connect_db(self):
+        self.connection = sqlite3.connect("library.db")
+        self.cursor = self.connection.cursor()
         
-        # 1. KİTAPLAR TABLOSU
-        # sahibi_id: Kitabı alan üyenin otomatik ID'si
-        sorgu_kitap = """CREATE TABLE IF NOT EXISTS kitaplar (
+        # 1. BOOKS TABLE
+        query_books = """CREATE TABLE IF NOT EXISTS books (
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            isim TEXT, 
-            yazar TEXT, 
-            yayinevi TEXT, 
-            sayfa_sayisi INT, 
-            sahibi_id INT
+            title TEXT, 
+            author TEXT, 
+            publisher TEXT, 
+            pages INT, 
+            owner_id INT
         )"""
-        self.imlec.execute(sorgu_kitap)
+        self.cursor.execute(query_books)
         
-        # 2. ÜYELER TABLOSU
-        # Sadece ID, Ad, Soyad var. Numara yok, ID numara yerine geçiyor.
-        sorgu_uye = """CREATE TABLE IF NOT EXISTS uyeler (
+        # 2. MEMBERS TABLE
+        query_members = """CREATE TABLE IF NOT EXISTS members (
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            ad TEXT, 
-            soyad TEXT
+            name TEXT, 
+            surname TEXT
         )"""
-        self.imlec.execute(sorgu_uye)
-        self.baglanti.commit()
+        self.cursor.execute(query_members)
+        self.connection.commit()
 
-    def baglantiyi_kes(self):
-        self.baglanti.close()
+    def close_connection(self):
+        self.connection.close()
 
-    # --- LİSTELEME ---
-    def kitaplari_listele(self):
-        self.imlec.execute("SELECT * FROM kitaplar")
-        liste = self.imlec.fetchall()
-        print("\n--- 📚 KİTAP LİSTESİ ---")
-        if len(liste) == 0:
-            print("Kütüphane boş.")
+    # --- LIST OPERATIONS ---
+    def list_books(self):
+        self.cursor.execute("SELECT * FROM books")
+        book_list = self.cursor.fetchall()
+        print("\n--- 📚 BOOK LIST ---")
+        if len(book_list) == 0:
+            print("Library is empty.")
         else:
-            for i in liste:
-                print(f"[ID: {i[0]}] {i[1]} - {i[2]} ({i[4]} Sayfa)")
+            for book in book_list:
+                # book[0]=id, book[1]=title
+                print(f"[ID: {book[0]}] {book[1]} - {book[2]} ({book[4]} p.)")
 
-    def uyeleri_listele(self):
-        self.imlec.execute("SELECT * FROM uyeler")
-        liste = self.imlec.fetchall()
-        print("\n--- 👥 ÜYE LİSTESİ ---")
-        if len(liste) == 0:
-           print("Kayıtlı üye yok.")
+    def list_members(self):
+        self.cursor.execute("SELECT * FROM members")
+        member_list = self.cursor.fetchall()
+        print("\n--- 👥 MEMBER LIST ---")
+        if len(member_list) == 0:
+           print("No members found.")
         else:
-            for i in liste:
-                print(f"[Üye ID: {i[0]}] {i[1]} {i[2]}")
+            for member in member_list:
+                print(f"[Member ID: {member[0]}] {member[1]} {member[2]}")
 
-    # --- EKLEME ---
-    def uye_ekle(self, ad, soyad):
-        # Numara sormuyoruz, sistem otomatik veriyor
-        sorgu = "INSERT INTO uyeler (ad, soyad) VALUES(?, ?)"
-        self.imlec.execute(sorgu, (ad, soyad))    
-        self.baglanti.commit()
-        print(f"✅ Yeni üye eklendi: {ad} {soyad}")
+    # --- ADD OPERATIONS ---
+    def add_member(self, name, surname):
+        query = "INSERT INTO members (name, surname) VALUES(?, ?)"
+        self.cursor.execute(query, (name, surname))    
+        self.connection.commit()
+        print(f"✅ New member added: {name} {surname}")
 
-    def kitap_ekle(self, isim, yazar, yayinevi, sayfa_sayisi):
-        sorgu = "INSERT INTO kitaplar (isim, yazar, yayinevi, sayfa_sayisi, sahibi_id) VALUES(?,?,?,?,?)"
-        self.imlec.execute(sorgu, (isim, yazar, yayinevi, sayfa_sayisi, None))
-        self.baglanti.commit() 
-        print(f"✅ Kitap eklendi: {isim}")
+    def add_book(self, title, author, publisher, pages):
+        query = "INSERT INTO books (title, author, publisher, pages, owner_id) VALUES(?,?,?,?,?)"
+        self.cursor.execute(query, (title, author, publisher, pages, None))
+        self.connection.commit() 
+        print(f"✅ Book added: {title}")
 
-    # --- SİLME (KRİTİK BÖLÜM) ---
-    def kitap_sil(self, kitap_id): 
-        sorgu = "DELETE FROM kitaplar WHERE id = ?"
-        self.imlec.execute(sorgu, (kitap_id,))
-        self.baglanti.commit()
-        print(f"🗑️ Kitap (ID: {kitap_id}) silindi.")
+    # --- DELETE & UPDATE ---
+    def delete_book(self, book_id): 
+        query = "DELETE FROM books WHERE id = ?"
+        self.cursor.execute(query, (book_id,))
+        self.connection.commit()
+        print(f"🗑️ Book (ID: {book_id}) deleted.")
 
-    # YENİ ÖZELLİK: GÜVENLİ ÜYE SİLME
-    def uye_sil(self, uye_id):
-        # 1. Önce üye var mı?
-        self.imlec.execute("SELECT * FROM uyeler WHERE id = ?", (uye_id,))
-        uye = self.imlec.fetchall()
-        if len(uye) == 0:
-            print("❌ Geçersiz Üye ID'si.")
+    # --- NEW: SAFE DELETE MEMBER ---
+    def delete_member(self, member_id):
+        # 1. Check if member exists
+        self.cursor.execute("SELECT * FROM members WHERE id = ?", (member_id,))
+        if len(self.cursor.fetchall()) == 0:
+            print("❌ Member not found.")
             return
 
-        # 2. KRİTİK KONTROL: Üyenin elinde kitap var mı?
-        self.imlec.execute("SELECT * FROM kitaplar WHERE sahibi_id = ?", (uye_id,))
-        elindeki_kitaplar = self.imlec.fetchall()
+        # 2. CRITICAL CHECK: Does this member have any books?
+        self.cursor.execute("SELECT * FROM books WHERE owner_id = ?", (member_id,))
+        borrowed_books = self.cursor.fetchall()
         
-        if len(elindeki_kitaplar) > 0:
-            print(f"❌ BU ÜYE SİLİNEMEZ! Şu an elinde {len(elindeki_kitaplar)} tane kitap var.")
-            print("Lütfen önce kitapları iade alsın.")
+        if len(borrowed_books) > 0:
+            print(f"❌ CANNOT DELETE MEMBER! They still have {len(borrowed_books)} book(s).")
+            print("Please return the books first.")
             return
 
-        # 3. Engel yoksa sil
-        sorgu = "DELETE FROM uyeler WHERE id = ?"
-        self.imlec.execute(sorgu, (uye_id,))
-        self.baglanti.commit()
-        print(f"✅ Üye (ID: {uye_id}) başarıyla silindi.")
+        # 3. Safe to delete
+        query = "DELETE FROM members WHERE id = ?"
+        self.cursor.execute(query, (member_id,))
+        self.connection.commit()
+        print(f"✅ Member (ID: {member_id}) deleted successfully.")
 
-    def sayfa_guncelle(self, kitap_id, yeni_sayfa):
-        sorgu = "UPDATE kitaplar SET sayfa_sayisi = ? WHERE id = ?"
-        self.imlec.execute(sorgu, (yeni_sayfa, kitap_id))
-        self.baglanti.commit()
-        print(f"🔄 Kitap (ID: {kitap_id}) güncellendi.")
+    def update_pages(self, book_id, new_pages):
+        query = "UPDATE books SET pages = ? WHERE id = ?"
+        self.cursor.execute(query, (new_pages, book_id))
+        self.connection.commit()
+        print(f"🔄 Book (ID: {book_id}) updated.")
 
-    # --- ÖDÜNÇ VE İADE ---
-    def kitap_ver(self, kitap_id, uye_id):
-        self.imlec.execute("SELECT * FROM kitaplar WHERE id = ?", (kitap_id,))
-        kitap = self.imlec.fetchall()
-        if len(kitap) == 0:
-            print("❌ Geçersiz Kitap ID'si!")
+    # --- LOAN OPERATIONS ---
+    def borrow_book(self, book_id, member_id):
+        self.cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+        book = self.cursor.fetchall()
+        if len(book) == 0:
+            print("❌ Invalid Book ID!")
             return
         
-        self.imlec.execute("SELECT * FROM uyeler WHERE id = ?", (uye_id,))
-        uye = self.imlec.fetchall()
-        if len(uye) == 0:
-            print(f"❌ {uye_id} numaralı üye bulunamadı!")
+        self.cursor.execute("SELECT * FROM members WHERE id = ?", (member_id,))
+        member = self.cursor.fetchall()
+        if len(member) == 0:
+            print(f"❌ Member ID {member_id} not found!")
             return
 
-        if kitap[0][5] is not None:
-            print("❌ Bu kitap zaten başkasına verilmiş.")
+        if book[0][5] is not None:
+            print("❌ This book is already borrowed.")
             return
             
-        sorgu = "UPDATE kitaplar SET sahibi_id = ? WHERE id = ?"
-        self.imlec.execute(sorgu, (uye_id, kitap_id))
-        self.baglanti.commit()
-        print(f"✅ Başarılı: Kitap (ID: {kitap_id}), Üye {uye_id}'ye verildi.")
+        query = "UPDATE books SET owner_id = ? WHERE id = ?"
+        self.cursor.execute(query, (member_id, book_id))
+        self.connection.commit()
+        print(f"✅ Success: Book {book_id} given to Member {member_id}.")
 
-    def kitap_iade(self, kitap_id):
-        self.imlec.execute("SELECT * FROM kitaplar WHERE id = ?", (kitap_id,))
-        kitap = self.imlec.fetchall()
-        if len(kitap) == 0:
-            print("❌ Geçersiz Kitap ID'si!")
+    def return_book(self, book_id):
+        self.cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+        book = self.cursor.fetchall()
+        if len(book) == 0:
+            print("❌ Invalid Book ID!")
+            return
+        if book[0][5] is None:
+            print("❌ This book is already in the library.")
             return
         
-        if kitap[0][5] is None:
-            print("❌ Bu kitap zaten kütüphanede (Rafta).")
-            return
-        
-        sorgu = "UPDATE kitaplar SET sahibi_id = NULL WHERE id = ?"
-        self.imlec.execute(sorgu, (kitap_id,))
-        self.baglanti.commit()
-        print(f"✅ İade Alındı: Kitap (ID: {kitap_id}) rafa kaldırıldı.")
+        query = "UPDATE books SET owner_id = NULL WHERE id = ?"
+        self.cursor.execute(query, (book_id,))
+        self.connection.commit()
+        print(f"✅ Book {book_id} returned to shelf.")
 
-    def detayli_listele(self):
-        sorgu = """
-        SELECT kitaplar.id, kitaplar.isim, uyeler.ad, uyeler.soyad 
-        FROM kitaplar 
-        LEFT JOIN uyeler ON kitaplar.sahibi_id = uyeler.id
+    def list_book_status(self):
+        query = """
+        SELECT books.id, books.title, members.name, members.surname 
+        FROM books 
+        LEFT JOIN members ON books.owner_id = members.id
         """
-        self.imlec.execute(sorgu)
-        full_liste = self.imlec.fetchall()
-        print("\n--- 🔍 DETAYLI DURUM ---")
-        if len(full_liste) == 0:
-            print("Kütüphane boş.")
+        self.cursor.execute(query)
+        full_list = self.cursor.fetchall()
+        print("\n--- 🔍 DETAILED STATUS ---")
+        if len(full_list) == 0:
+            print("Library is empty.")
         else:
-            for satir in full_liste:
-                k_id = satir[0]
-                isim = satir[1]
-                uye_ad = satir[2]
-                uye_soyad = satir[3]
+            for item in full_list:
+                b_id = item[0]
+                title = item[1]
+                m_name = item[2]
+                m_surname = item[3]
                 
-                if uye_ad is None:
-                    print(f"📕 [ID: {k_id}] {isim} -> RAFTA (Müsait)")
+                if m_name is None:
+                    print(f"📕 [ID: {b_id}] {title} -> AVAILABLE")
                 else:
-                    print(f"⛔ [ID: {k_id}] {isim} -> {uye_ad} {uye_soyad} okuyor.")
+                    print(f"⛔ [ID: {b_id}] {title} -> Borrowed by {m_name} {m_surname}")
 
-# --- ANA MENÜ ---
+# --- MAIN MENU ---
 
-kutuphanem = Kutuphane()
-print("\n=== 🏛️  HALK KÜTÜPHANESİ OTOMASYONU v3.0 (Türkçe) ===")
+library = Library()
+print("\n=== 🏛️  LIBRARY MANAGEMENT SYSTEM v1.0 (Global Final) ===")
 
 while True:
     print("\n" + "="*30)
-    print("ANA MENÜ")
-    print("1. 📚 Kitap İşlemleri")
-    print("2. 👥 Üye ve Ödünç İşlemleri")
-    print("q. Çıkış")
+    print("MAIN MENU")
+    print("1. 📚 Book Operations")
+    print("2. 👥 Member & Loan Operations")
+    print("q. Quit")
     print("="*30)
     
-    secim = input("Seçiminiz: ")
+    choice = input("Select: ")
 
-    if secim == "q":
-        kutuphanem.baglantiyi_kes()
-        print("Sistemden çıkılıyor... İyi günler!")
+    if choice == "q":
+        library.close_connection()
+        print("Goodbye!")
         break
 
-    # KİTAP MENÜSÜ
-    elif secim == "1":
+    # BOOK MENU
+    elif choice == "1":
         while True:
-            print("\n--- Kitap Yönetimi ---")
-            print("1- Listele | 2- Ekle | 3- Sil (ID ile) | 4- Sayfa Güncelle | b- Geri")
-            alt_islem = input("İşlem: ")
+            print("\n--- Book Management ---")
+            print("1- List Books | 2- Add Book | 3- Delete Book | 4- Update Page | b- Back")
+            action = input("Action: ")
             
-            if alt_islem == "b": break 
-            elif alt_islem == "1":
-                kutuphanem.kitaplari_listele()
-            elif alt_islem == "2":
-                isim = input("Kitap Adı: ")
-                yazar = input("Yazar: ")
-                yay = input("Yayınevi: ")
+            if action == "b": break 
+            elif action == "1":
+                library.list_books()
+            elif action == "2":
+                t = input("Title: ")
+                a = input("Author: ")
+                p = input("Publisher: ")
                 try:
-                    sayfa = int(input("Sayfa Sayısı: "))
-                    kutuphanem.kitap_ekle(isim, yazar, yay, sayfa)
+                    pg = int(input("Pages: "))
+                    library.add_book(t, a, p, pg)
                 except ValueError:
-                    print("Lütfen sayfa sayısını rakamla giriniz.")
-            elif alt_islem == "3":
-                kutuphanem.kitaplari_listele() 
+                    print("Invalid number.")
+            elif action == "3":
+                library.list_books() 
                 try:
-                    k_id = int(input("Silinecek Kitap ID'si: "))
-                    kutuphanem.kitap_sil(k_id)
+                    b_id = int(input("Enter Book ID to delete: "))
+                    library.delete_book(b_id)
                 except ValueError:
-                    print("Lütfen rakam giriniz.")
-            elif alt_islem == "4":
-                kutuphanem.kitaplari_listele()
+                    print("Please enter a numeric ID.")
+            elif action == "4":
+                library.list_books()
                 try:
-                    k_id = int(input("Güncellenecek Kitap ID'si: "))
-                    yeni_sayfa = int(input("Yeni Sayfa Sayısı: "))
-                    kutuphanem.sayfa_guncelle(k_id, yeni_sayfa)
+                    b_id = int(input("Enter Book ID: "))
+                    new_pg = int(input("New Page Count: "))
+                    library.update_pages(b_id, new_pg)
                 except ValueError:
-                    print("Lütfen rakam giriniz.")
+                    print("Please enter numbers.")
 
-    # ÜYE MENÜSÜ
-    elif secim == "2":
+    # MEMBER MENU
+    elif choice == "2":
         while True:
-            print("\n--- Üye ve Ödünç ---")
-            print("1- Üyeleri Listele | 2- Üye Ekle | 3- ÜYE SİL (Yeni)")
-            print("4- Kitap Ver (ID ile) | 5- İade Al (ID ile) | 6- Kimde Ne Var? | b- Geri")
-            alt_islem = input("İşlem: ")
+            print("\n--- Member & Loans ---")
+            print("1- List Members | 2- Add Member | 3- Delete Member")
+            print("4- Borrow Book | 5- Return Book | 6- Status Report | b- Back")
+            action = input("Action: ")
             
-            if alt_islem == "b": break
-            elif alt_islem == "1":
-                kutuphanem.uyeleri_listele()
-            elif alt_islem == "2":
-                ad = input("Ad: ")       
-                soyad = input("Soyad: ")
-                kutuphanem.uye_ekle(ad, soyad)
+            if action == "b": break
+            elif action == "1":
+                library.list_members()
+            elif action == "2":
+                n = input("Name: ")       
+                s = input("Surname: ")
+                library.add_member(n, s)
             
-            # YENİ EKLENEN KISIM
-            elif alt_islem == "3":
-                kutuphanem.uyeleri_listele()
+            # NEW FEATURE: Delete Member
+            elif action == "3":
+                library.list_members()
                 try:
-                    u_id = int(input("Silinecek Üye ID: "))
-                    kutuphanem.uye_sil(u_id)
+                    m_id = int(input("Enter Member ID to delete: "))
+                    library.delete_member(m_id)
                 except ValueError:
-                    print("Lütfen rakam giriniz.")
+                    print("Invalid ID.")
 
-            elif alt_islem == "4":
-                kutuphanem.kitaplari_listele() 
+            elif action == "4":
+                library.list_books()
                 try:
-                    k_id = int(input("Verilecek Kitap ID'si: "))
-                    u_id = int(input("Alan Üye ID'si: "))
-                    kutuphanem.kitap_ver(k_id, u_id)
+                    b_id = int(input("Enter Book ID: "))
+                    m_id = int(input("Enter Member ID: "))
+                    library.borrow_book(b_id, m_id)
                 except ValueError:
-                    print("Lütfen rakam giriniz.")
-            elif alt_islem == "5":
+                    print("Please enter numeric IDs.")
+            elif action == "5":
                 try:
-                    k_id = int(input("İade Edilecek Kitap ID'si: "))
-                    kutuphanem.kitap_iade(k_id)
+                    b_id = int(input("Enter Book ID to return: "))
+                    library.return_book(b_id)
                 except ValueError:
-                    print("Geçersiz ID.")
-            elif alt_islem == "6":
-                kutuphanem.detayli_listele()
+                    print("Invalid ID.")
+            elif action == "6":
+                library.list_book_status()
